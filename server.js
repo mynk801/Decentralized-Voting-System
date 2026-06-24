@@ -10,10 +10,20 @@ console.log("Setting up middleware...");
 app.use(express.json());
 app.use(cors());
 
+// Health check endpoint (must be BEFORE the DB middleware so it doesn't get blocked)
+app.get('/api/health', (req, res) => {
+    const isConnected = mongoose.connection.readyState === 1;
+    res.status(isConnected ? 200 : 503).json({
+        status: isConnected ? 'online' : 'offline',
+        dbState: mongoose.connection.readyState
+    });
+});
+
 // Database connection state middleware (Must be BEFORE routes)
 app.use((req, res, next) => {
-    // readyState: 0 = disconnected, 1 = connected, 2 = connecting, 3 = disconnecting
-    if (mongoose.connection.readyState !== 1 && mongoose.connection.readyState !== 2) {
+    // strictly require readyState === 1 (connected). 
+    // If 0 (disconnected) or 2 (connecting/reconnecting), reject immediately.
+    if (mongoose.connection.readyState !== 1) {
         return res.status(503).json({ error: 'Database connection lost. Please ensure MongoDB is running.' });
     }
     next();
@@ -32,6 +42,9 @@ mongoose.connection.on('disconnected', () => {
 mongoose.connection.on('reconnected', () => {
     console.log('✅ MongoDB reconnected!');
 });
+
+// Disable Mongoose buffering globally so queries instantly fail if DB is down
+mongoose.set('bufferCommands', false);
 
 mongoose.connect(process.env.MONGO_URI, {
     serverSelectionTimeoutMS: 5000 // Fail fast if DB is down on startup

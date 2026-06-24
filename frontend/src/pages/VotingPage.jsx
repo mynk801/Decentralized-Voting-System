@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
 import { encryptVote } from '../utils/encryption';
+import { useDatabase } from '../context/DatabaseContext';
 
 const API_BASE = 'http://localhost:5000/api';
 
@@ -17,6 +18,7 @@ export default function VotingPage() {
     const location = useLocation();
     const navigate = useNavigate();
     const token = location.state?.token;
+    const { isOnline } = useDatabase();
 
     const [selectedId, setSelectedId] = useState(null);
     const [showModal, setShowModal] = useState(false);
@@ -31,12 +33,12 @@ export default function VotingPage() {
     const selectedCandidate = candidates.find(c => c.id === selectedId);
 
     const handleSelect = (id) => {
-        if (submitting || result) return;
+        if (submitting || result || !isOnline) return;
         setSelectedId(id);
     };
 
     const handleConfirm = async () => {
-        if (selectedId === null) return;
+        if (selectedId === null || !isOnline) return;
         setSubmitting(true);
 
         try {
@@ -130,7 +132,7 @@ export default function VotingPage() {
                 </p>
             </div>
 
-            <div className="candidates-grid">
+            <div className="candidates-grid" style={{ opacity: isOnline ? 1 : 0.5, pointerEvents: isOnline ? 'auto' : 'none' }}>
                 {candidates.map((candidate) => (
                     <div
                         key={candidate.id}
@@ -159,13 +161,17 @@ export default function VotingPage() {
             <div style={{ marginTop: '2rem', textAlign: 'center' }}>
                 <button
                     className="btn btn--success btn--lg"
-                    disabled={selectedId === null}
+                    disabled={selectedId === null || !isOnline}
                     onClick={() => setShowModal(true)}
                     id="cast-vote-btn"
                 >
                     🔐 Cast My Vote
                 </button>
-                {selectedId === null && (
+                {!isOnline ? (
+                    <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--color-accent-danger)', fontWeight: 'bold' }}>
+                        Voting is currently disabled because the database is offline.
+                    </p>
+                ) : selectedId === null && (
                     <p style={{ marginTop: '0.75rem', fontSize: '0.82rem', color: 'var(--color-text-muted)' }}>
                         Select a candidate to enable voting
                     </p>

@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDatabase } from '../context/DatabaseContext';
 
 const API_BASE = 'http://localhost:5000/api';
 
 export default function PassUploadPage() {
+    const { isOnline } = useDatabase();
     const [isDragging, setIsDragging] = useState(false);
     const [fileName, setFileName] = useState('');
     const [status, setStatus] = useState(null); // null | 'verifying' | 'success' | 'error'
@@ -21,7 +23,7 @@ export default function PassUploadPage() {
     }, []);
 
     const handleFile = async (file) => {
-        if (!file) return;
+        if (!file || !isOnline) return;
 
         setFileName(file.name);
         setStatus('verifying');
@@ -62,12 +64,14 @@ export default function PassUploadPage() {
     const onDrop = (e) => {
         e.preventDefault();
         setIsDragging(false);
+        if (!isOnline) return;
         const file = e.dataTransfer.files[0];
         handleFile(file);
     };
 
     const onDragOver = (e) => {
         e.preventDefault();
+        if (!isOnline) return;
         setIsDragging(true);
     };
 
@@ -83,7 +87,8 @@ export default function PassUploadPage() {
     const dropZoneClass = [
         'drop-zone',
         isDragging && 'drop-zone--active',
-        status === 'success' && 'drop-zone--success'
+        status === 'success' && 'drop-zone--success',
+        !isOnline && 'drop-zone--disabled'
     ].filter(Boolean).join(' ');
 
     return (
@@ -102,8 +107,9 @@ export default function PassUploadPage() {
                     onDrop={onDrop}
                     onDragOver={onDragOver}
                     onDragLeave={onDragLeave}
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => isOnline && fileInputRef.current?.click()}
                     id="voter-pass-drop-zone"
+                    style={{ cursor: isOnline ? 'pointer' : 'not-allowed', opacity: isOnline ? 1 : 0.6 }}
                 >
                     <input
                         type="file"
@@ -111,10 +117,17 @@ export default function PassUploadPage() {
                         onChange={onFileChange}
                         accept=".json"
                         style={{ display: 'none' }}
+                        disabled={!isOnline}
                         id="voter-pass-file-input"
                     />
 
-                    {status === 'verifying' ? (
+                    {!isOnline ? (
+                        <>
+                            <span className="drop-zone__icon" style={{ filter: 'grayscale(1)' }}>🔌</span>
+                            <p className="drop-zone__text">Upload Disabled</p>
+                            <p className="drop-zone__hint">System is currently offline. Waiting for database...</p>
+                        </>
+                    ) : status === 'verifying' ? (
                         <>
                             <span className="drop-zone__icon">
                                 <span className="spinner"></span>

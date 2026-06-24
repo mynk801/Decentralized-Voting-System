@@ -623,6 +623,51 @@ a {
    ============================================ */
 
 /* ============================================
+   DATABASE INDICATOR
+   ============================================ */
+.db-indicator {
+  position: fixed;
+  top: var(--space-md);
+  right: var(--space-md);
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 0.4rem 0.8rem;
+  background: var(--color-bg-glass);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  z-index: 1000;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.db-indicator__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.db-indicator--online .db-indicator__dot {
+  background: var(--color-accent-success);
+  box-shadow: 0 0 8px var(--color-accent-success);
+}
+
+.db-indicator--offline .db-indicator__dot {
+  background: var(--color-accent-danger);
+  box-shadow: 0 0 8px var(--color-accent-danger);
+  animation: pulse-danger 1.5s infinite;
+}
+
+@keyframes pulse-danger {
+  0% { opacity: 1; box-shadow: 0 0 8px var(--color-accent-danger); }
+  50% { opacity: 0.4; box-shadow: 0 0 2px var(--color-accent-danger); }
+  100% { opacity: 1; box-shadow: 0 0 8px var(--color-accent-danger); }
+}
+
+/* ============================================
    CHAIN INTEGRITY INDICATOR
    ============================================ */
 
