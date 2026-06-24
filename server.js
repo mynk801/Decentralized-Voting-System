@@ -12,6 +12,7 @@ app.use(cors());
 
 console.log("Setting up routes...");
 app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/votes', require('./routes/voteRoutes'));
 
 console.log("Attempting database connection...");
 mongoose.connect(process.env.MONGO_URI)

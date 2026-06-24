@@ -1,0 +1,26 @@
+[
+    {
+        "id": 1,
+        "name": "Candidate A",
+        "party": "Progressive Alliance",
+        "logo": "/assets/candidate_a.png"
+    },
+    {
+        "id": 2,
+        "name": "Candidate B",
+        "party": "National Front",
+        "logo": "/assets/candidate_b.png"
+    },
+    {
+        "id": 3,
+        "name": "Candidate C",
+        "party": "Democratic Union",
+        "logo": "/assets/candidate_c.png"
+    },
+    {
+        "id": 4,
+        "name": "Candidate D",
+        "party": "People's Party",
+        "logo": "/assets/candidate_d.png"
+    }
+]
