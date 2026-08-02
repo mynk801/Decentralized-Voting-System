@@ -1,17 +1,17 @@
 # Decentralized Voting System (DCVS)
 
-A secure, end-to-end encrypted electronic voting platform featuring client-side RSA ballot encryption and a tamper-evident SHA-256 cryptographic ledger stored in MongoDB.
+A secure, end-to-end encrypted electronic voting platform featuring client-side RSA ballot encryption, voter registration, pass-based authentication, and a tamper-evident SHA-256 cryptographic ledger stored in MongoDB.
 
 ---
 
 ## 🚀 Features
 
 - **Client-Side Vote Encryption**: Votes are encrypted on the voter's device using 2048-bit RSA-OAEP public key encryption before reaching the server. Plaintext choices are never transmitted or stored in the database.
+- **Voter Registration Portal**: Only registered users can cast votes. Voters register via the portal (`/register`) to receive an official, cryptographic voter pass `.json` file.
+- **Pass-Based Voter Authentication**: Authenticate using the official `.json` voter pass generated upon registration.
+- **Single-Use Pass Enforcement**: Consumed pass tokens are registered in a dedicated `UsedToken` collection to strictly enforce the "one person, one vote" rule.
 - **Tamper-Evident Ledger**: Every cast ballot is linked to the previous vote using SHA-256 cryptographic hashes (blockchain-inspired hash chaining).
 - **Real-Time Ledger Auditing**: Real-time chain validation recalculates hash links across all blocks to detect any unauthorized database tampering immediately.
-- **Pass-Based Voter Authentication**: Secure authentication using cryptographic `.json` pass files containing unique tokens (`MOCK-VOTER-PASS-*`).
-- **Single-Use Pass Enforcement**: Consumed pass tokens are registered in a dedicated `UsedToken` collection to strictly enforce the "one person, one vote" rule.
-- **Voter Registration Portal**: Register voters and issue unique cryptographic voter passes.
 - **Audit Dashboard**: View live block-by-block hash chains, block indices, and chain integrity status.
 - **Admin Dashboard**: Manage election states and system administration.
 
@@ -62,21 +62,13 @@ MONGO_URI=mongodb://localhost:27017/dcvs
 
 ---
 
-### 3. Generate RSA Keypair & Voter Passes
+### 3. Generate RSA Keypair
 
-#### Step A: Generate RSA Encryption Keys
 Run this script to generate the 2048-bit RSA keypair used for ballot encryption:
 ```bash
 node scripts/generateKeys.js
 ```
 *(Creates `keys/private.pem` and `keys/public.pem`)*
-
-#### Step B: Generate Mock Voter Passes
-Run this script to generate mock `.json` voter pass files:
-```bash
-node scripts/generateMockPass.js
-```
-*(Generates voter pass `.json` files inside the `mock-passes/` folder)*
 
 ---
 
@@ -105,8 +97,8 @@ npm run dev
 
 | Route | Description |
 |-------|-------------|
-| `/` | Voter Pass Upload & Verification |
 | `/register` | Voter Registration & Pass Generation |
+| `/` | Voter Pass Upload & Verification |
 | `/vote` | Encrypted Interactive Ballot |
 | `/audit` | Public Audit & Ledger Verification Dashboard |
 | `/admin` | Admin Dashboard |
@@ -116,8 +108,8 @@ npm run dev
 ## 🔌 API Endpoints Summary
 
 ### Authentication (`/api/auth`)
-- `POST /api/auth/register` — Register voter identity
-- `POST /api/auth/verify-pass` — Validate voter pass token
+- `POST /api/auth/register` — Register voter identity & generate voter pass
+- `POST /api/auth/verify-pass` — Validate registered voter pass token
 
 ### Voting & Ledger (`/api/votes`)
 - `GET /api/votes/public-key` — Fetch RSA public key for client encryption
@@ -132,7 +124,8 @@ npm run dev
 
 ## 🧪 Testing Workflow
 
-1. Open `http://localhost:5173` in your web browser.
-2. Upload a `.json` pass file from the `mock-passes/` directory.
-3. Select your candidate on the ballot page and click **Cast Encrypted Vote**.
-4. Visit the **Audit Dashboard** (`/audit`) to view the stored blocks, cryptographic hash linkages, and real-time chain verification status.
+1. Open `http://localhost:5173/register` in your web browser.
+2. Register as a new voter to generate and download your official voter pass `.json` file.
+3. Go to the login/pass upload page (`http://localhost:5173/`), upload your registered voter pass `.json` file.
+4. Select your candidate on the ballot page and click **Cast Encrypted Vote**.
+5. Visit the **Audit Dashboard** (`/audit`) to view the stored blocks, cryptographic hash linkages, and real-time chain verification status.
