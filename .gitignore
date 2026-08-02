@@ -5,3 +5,4 @@ frontend/dist/
 keys/
 mock-passes/*.json
 .DS_Store
+*.bak

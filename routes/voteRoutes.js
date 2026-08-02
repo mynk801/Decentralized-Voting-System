@@ -14,4 +14,10 @@ router.get('/public-key', voteController.getPublicKey);
 // Verify the integrity of the entire vote chain
 router.get('/verify-chain', voteController.verifyChain);
 
+// Get real-time vote tally (decrypted using private key)
+router.get('/tally', voteController.getTally);
+
+// Search for a specific vote receipt hash in the ledger
+router.get('/receipt/:hash', voteController.verifyReceipt);
+
 module.exports = router;

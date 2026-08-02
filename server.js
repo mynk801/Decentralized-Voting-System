@@ -32,6 +32,8 @@ app.use((req, res, next) => {
 console.log("Setting up routes...");
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/votes', require('./routes/voteRoutes'));
+app.use('/api/admin', require('./routes/adminRoutes'));
+
 
 console.log("Attempting database connection...");
 

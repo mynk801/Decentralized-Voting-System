@@ -26,10 +26,6 @@ export function DatabaseProvider({ children }) {
     return (
         <DatabaseContext.Provider value={{ isOnline }}>
             {children}
-            <div className={`db-indicator ${isOnline ? 'db-indicator--online' : 'db-indicator--offline'}`}>
-                <span className="db-indicator__dot"></span>
-                {isOnline ? 'Database Connected' : 'Database Offline'}
-            </div>
         </DatabaseContext.Provider>
     );
 }

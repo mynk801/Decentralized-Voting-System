@@ -1,6 +1,8 @@
 const crypto = require('crypto');
 const Vote = require('../models/Vote');
 const UsedToken = require('../models/UsedToken');
+const Voter = require('../models/Voter');
+const ElectionState = require('../models/ElectionState');
 const fs = require('fs');
 const path = require('path');
 
@@ -9,7 +11,7 @@ const GENESIS_HASH = '0';
 
 /**
  * POST /api/votes/verify-pass
- * Validates a mock Voter Pass token and checks it hasn't been used already.
+ * Validates a mock or registered Voter Pass token and checks it hasn't been used already.
  */
 exports.verifyPass = async (req, res) => {
     try {
@@ -19,11 +21,20 @@ exports.verifyPass = async (req, res) => {
             return res.status(400).json({ error: 'Invalid or missing voter pass token.' });
         }
 
-        // Check token format
-        const isValid = token.startsWith('MOCK-VOTER-PASS-');
-        if (!isValid) {
-            return res.status(401).json({ error: 'Voter pass verification failed.' });
+        // Check global election status
+        const electionState = await ElectionState.findOne();
+        if (electionState && electionState.status !== 'LIVE') {
+            const statusLabel = electionState.status === 'ENDED' ? 'ENDED / CLOSED' : 'PAUSED / UPCOMING';
+            return res.status(403).json({ error: `Voting is currently ${statusLabel} by election administration.` });
         }
+
+        // Check if token exists in the registered Voter collection
+        const registeredVoter = await Voter.findOne({ anonymousToken: token });
+        if (!registeredVoter) {
+            return res.status(401).json({ error: 'Unregistered or invalid voter pass. Please register first on the Registration page.' });
+        }
+
+
 
         // Check if this token has already been used to cast a vote
         const alreadyUsed = await UsedToken.findOne({ token });
@@ -42,6 +53,7 @@ exports.verifyPass = async (req, res) => {
     }
 };
 
+
 /**
  * POST /api/votes/cast
  * Receives an encrypted vote payload + voter token, chains it, and stores it.
@@ -58,6 +70,14 @@ exports.castVote = async (req, res) => {
         if (!token || typeof token !== 'string') {
             return res.status(400).json({ error: 'Missing voter pass token.' });
         }
+
+        // Check global election status
+        const electionState = await ElectionState.findOne();
+        if (electionState && electionState.status !== 'LIVE') {
+            const statusLabel = electionState.status === 'ENDED' ? 'ENDED / CLOSED' : 'PAUSED / UPCOMING';
+            return res.status(403).json({ error: `Voting is currently ${statusLabel} by election administration.` });
+        }
+
 
         // Double-check the token hasn't been used (race condition guard)
         const alreadyUsed = await UsedToken.findOne({ token });
@@ -177,3 +197,108 @@ exports.verifyChain = async (req, res) => {
         res.status(500).json({ error: 'Failed to verify chain.' });
     }
 };
+
+/**
+ * GET /api/votes/tally
+ * Decrypts all stored votes using the private key and aggregates the results per candidate.
+ */
+exports.getTally = async (req, res) => {
+    try {
+        const privateKeyPath = path.join(__dirname, '..', 'keys', 'private.pem');
+
+        if (!fs.existsSync(privateKeyPath)) {
+            return res.status(500).json({ error: 'Private key not found. Unable to decrypt tally.' });
+        }
+
+        const privateKey = fs.readFileSync(privateKeyPath, 'utf-8');
+        const votes = await Vote.find().sort({ timestamp: 1 });
+
+        const tally = {
+            '0': 0, // NOTA
+            '1': 0, // Candidate A
+            '2': 0, // Candidate B
+            '3': 0, // Candidate C
+            '4': 0  // Candidate D
+        };
+
+        let decryptedCount = 0;
+        let failedCount = 0;
+
+        for (const vote of votes) {
+            try {
+                const decryptedBuffer = crypto.privateDecrypt(
+                    {
+                        key: privateKey,
+                        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING,
+                        oaepHash: 'sha256'
+                    },
+                    Buffer.from(vote.encryptedPayload, 'base64')
+                );
+
+                const payloadData = JSON.parse(decryptedBuffer.toString('utf-8'));
+                const candidateId = String(payloadData.candidateId);
+
+                if (tally.hasOwnProperty(candidateId)) {
+                    tally[candidateId]++;
+                } else {
+                    tally[candidateId] = 1;
+                }
+                decryptedCount++;
+            } catch (err) {
+                console.error(`Failed to decrypt vote ID ${vote._id}:`, err.message);
+                failedCount++;
+            }
+        }
+
+        res.status(200).json({
+            totalVotes: votes.length,
+            decryptedCount,
+            failedCount,
+            tally
+        });
+    } catch (error) {
+        console.error('getTally error:', error);
+        res.status(500).json({ error: 'Failed to compute vote tally.' });
+    }
+};
+
+/**
+ * GET /api/votes/receipt/:hash
+ * Searches the ledger for a vote matching the provided hash receipt.
+ */
+exports.verifyReceipt = async (req, res) => {
+    try {
+        const { hash } = req.params;
+
+        if (!hash || typeof hash !== 'string' || hash.trim().length === 0) {
+            return res.status(400).json({ error: 'Receipt hash parameter is required.' });
+        }
+
+        const cleanHash = hash.trim();
+        const vote = await Vote.findOne({ currentHash: cleanHash });
+
+        if (!vote) {
+            return res.status(404).json({
+                found: false,
+                message: 'Receipt hash not found in the voting ledger.'
+            });
+        }
+
+        // Count how many votes came before this one to determine position
+        const position = await Vote.countDocuments({ timestamp: { $lte: vote.timestamp } });
+
+        res.status(200).json({
+            found: true,
+            receipt: {
+                currentHash: vote.currentHash,
+                previousHash: vote.previousHash,
+                timestamp: vote.timestamp,
+                position
+            }
+        });
+    } catch (error) {
+        console.error('verifyReceipt error:', error);
+        res.status(500).json({ error: 'Failed to verify receipt.' });
+    }
+};
+

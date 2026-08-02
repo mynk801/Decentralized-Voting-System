@@ -1,15 +1,16 @@
 const mongoose = require('mongoose');
 
 const VoterSchema = new mongoose.Schema({
-    // Inputted Data (Hashed for privacy)
-    idHash: { type: String, required: true, unique: true },
-    
-    // Cryptographic Identity Keys
-    publicKey: { type: String, required: true },
-    
-    // The "Voter's Token" for anonymous ballot casting
-    anonymousToken: { type: String, required: true },
-    
+    // Full Name & Date of Birth (Required for registration)
+    fullName: { type: String, required: true },
+    dateOfBirth: { type: String, required: true },
+
+    // SHA-256 hash of government ID or identity tuple (optional if gov ID is omitted)
+    idHash: { type: String, unique: true, sparse: true },
+
+    // The anonymous token for ballot casting
+    anonymousToken: { type: String, required: true, unique: true },
+
     registeredAt: { type: Date, default: Date.now }
 });
 

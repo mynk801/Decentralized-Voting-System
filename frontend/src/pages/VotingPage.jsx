@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
+import QRCode from 'qrcode';
 import { encryptVote } from '../utils/encryption';
 import { useDatabase } from '../context/DatabaseContext';
 
@@ -24,6 +26,7 @@ export default function VotingPage() {
     const [showModal, setShowModal] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [result, setResult] = useState(null); // null | { success, voteHash?, error? }
+    const [qrDataUrl, setQrDataUrl] = useState('');
 
     // Guard: if no token was passed (e.g. direct URL access), redirect to upload
     if (!token) {
@@ -35,6 +38,115 @@ export default function VotingPage() {
     const handleSelect = (id) => {
         if (submitting || result || !isOnline) return;
         setSelectedId(id);
+    };
+
+    const generateVoteReceiptPdf = async (voteHash, existingQrUrl) => {
+        try {
+            let qrUrl = existingQrUrl;
+            if (!qrUrl && voteHash) {
+                qrUrl = await QRCode.toDataURL(voteHash, {
+                    width: 300,
+                    margin: 2,
+                    color: {
+                        dark: '#0f172a',
+                        light: '#ffffff'
+                    }
+                });
+            }
+
+            const doc = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            // Background / Theme colors
+            doc.setFillColor(15, 23, 42); // Navy Dark (#0f172a)
+            doc.rect(0, 0, 210, 297, 'F');
+
+            // Header Banner
+            doc.setFillColor(16, 185, 129); // Emerald Success (#10b981)
+            doc.rect(15, 15, 180, 28, 'F');
+
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(20);
+            doc.text('DECENTRALIZED VOTING SYSTEM', 105, 27, { align: 'center' });
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'normal');
+            doc.text('OFFICIAL ANONYMOUS VOTE RECEIPT', 105, 36, { align: 'center' });
+
+            // Outer Card Container
+            doc.setDrawColor(16, 185, 129);
+            doc.setLineWidth(0.8);
+            doc.setFillColor(30, 41, 59); // Slate Dark (#1e293b)
+            doc.roundedRect(15, 48, 180, 230, 4, 4, 'FD');
+
+            // Receipt Header Section
+            doc.setFillColor(51, 65, 85);
+            doc.rect(25, 58, 160, 10, 'F');
+            doc.setTextColor(52, 211, 153); // Light Emerald
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.text('CRYPTOGRAPHIC PROOF OF BALLOT CASTING', 105, 64.5, { align: 'center' });
+
+            // Details (No personal identity details)
+            doc.setTextColor(241, 245, 249);
+            doc.setFontSize(10);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text('Ledger Status:', 30, 78);
+            doc.setFont('helvetica', 'normal');
+            doc.text('VERIFIED & CHAINED (TAMPER-EVIDENT)', 75, 78);
+
+            doc.setFont('helvetica', 'bold');
+            doc.text('Timestamp:', 30, 87);
+            doc.setFont('helvetica', 'normal');
+            doc.text(new Date().toLocaleString(), 75, 87);
+
+            // Divider Line
+            doc.setDrawColor(71, 85, 105);
+            doc.setLineWidth(0.4);
+            doc.line(25, 96, 185, 96);
+
+            // QR Code Section Header
+            doc.setFillColor(51, 65, 85);
+            doc.rect(25, 103, 160, 10, 'F');
+            doc.setTextColor(52, 211, 153);
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.text('SCAN QR TO AUDIT RECEIPT ON PUBLIC LEDGER', 105, 109.5, { align: 'center' });
+
+            // QR Code
+            if (qrUrl) {
+                doc.addImage(qrUrl, 'PNG', 65, 118, 80, 80);
+            }
+
+            // Vote Hash Box
+            doc.setFillColor(15, 23, 42);
+            doc.roundedRect(25, 204, 160, 22, 2, 2, 'F');
+            doc.setFontSize(8);
+            doc.setFont('courier', 'bold');
+            doc.setTextColor(148, 163, 184);
+            doc.text('VOTE RECEIPT HASH:', 105, 210, { align: 'center' });
+            doc.setFontSize(6.5);
+            doc.setFont('courier', 'normal');
+            doc.text(voteHash, 105, 218, { align: 'center', maxWidth: 150 });
+
+            // Security & Anonymity Disclaimer Footer
+            doc.setTextColor(148, 163, 184);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            doc.text('ZERO-KNOWLEDGE ANONYMITY GUARANTEE:', 105, 238, { align: 'center', maxWidth: 150 });
+            doc.setFontSize(7.5);
+            doc.text('This receipt contains zero personal identity information and cannot be traced back to your identity or ballot choices.', 105, 244, { align: 'center', maxWidth: 150 });
+            doc.text('You can verify this receipt on the Public Audit Dashboard at any time.', 105, 252, { align: 'center', maxWidth: 150 });
+
+            doc.save(`vote-receipt-${voteHash.slice(0, 8)}.pdf`);
+        } catch (err) {
+            console.error('Failed to generate vote receipt PDF:', err);
+            alert('Error generating PDF receipt. Please try again.');
+        }
     };
 
     const handleConfirm = async () => {
@@ -56,6 +168,12 @@ export default function VotingPage() {
 
             if (response.ok) {
                 setResult({ success: true, voteHash: data.voteHash });
+                const qrUrl = await QRCode.toDataURL(data.voteHash, {
+                    width: 300,
+                    margin: 2,
+                    color: { dark: '#0f172a', light: '#ffffff' }
+                });
+                setQrDataUrl(qrUrl);
             } else {
                 setResult({ success: false, error: data.error || 'Vote casting failed.' });
             }
@@ -71,7 +189,7 @@ export default function VotingPage() {
     if (result?.success) {
         return (
             <div className="page-container">
-                <div className="success-screen">
+                <div className="success-screen" style={{ maxWidth: '520px', width: '100%' }}>
                     <span className="success-screen__icon">✅</span>
                     <h1 className="success-screen__title">Vote Cast Successfully</h1>
                     <p style={{ color: 'var(--color-text-secondary)', marginBottom: '1rem' }}>
@@ -79,20 +197,38 @@ export default function VotingPage() {
                     </p>
                     <p className="success-screen__hash-label">Vote Hash (Receipt)</p>
                     <div className="success-screen__hash">{result.voteHash}</div>
+
+                    {qrDataUrl && (
+                        <div className="pass-qr-container" style={{ margin: '1rem auto 1.5rem', maxWidth: '240px' }}>
+                            <img src={qrDataUrl} alt="Vote Receipt QR Code" className="pass-qr-img" style={{ width: '120px', height: '120px' }} />
+                            <p className="qr-hint">Scan to audit this vote receipt</p>
+                        </div>
+                    )}
+
                     <p style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)', maxWidth: '380px', margin: '0 auto 1.5rem' }}>
                         🔒 This hash is your cryptographic receipt. No one — not even the system — can trace it back to your identity.
                     </p>
-                    <button
-                        className="btn btn--outline"
-                        onClick={() => navigate('/', { replace: true })}
-                        id="back-home-btn"
-                    >
-                        ← Back to Home
-                    </button>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        <button
+                            className="btn btn--success btn--lg"
+                            onClick={() => generateVoteReceiptPdf(result.voteHash, qrDataUrl)}
+                        >
+                            📄 Download Anonymous Vote Receipt (PDF)
+                        </button>
+                        <button
+                            className="btn btn--outline"
+                            onClick={() => navigate('/', { replace: true })}
+                            id="back-home-btn"
+                        >
+                            ← Back to Home
+                        </button>
+                    </div>
                 </div>
             </div>
         );
     }
+
 
     // ── Error Screen ──
     if (result && !result.success) {
